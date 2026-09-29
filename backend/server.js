@@ -31,6 +31,23 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+    // Accept only the last 20 valid text messages from the extension.
+    const priorHistory = Array.isArray(req.body.history)
+      ? req.body.history.slice(-20)
+      : [];
+
+    const input = priorHistory
+      .filter(
+        (entry) =>
+          entry &&
+          (entry.role === "user" || entry.role === "assistant") &&
+          typeof entry.text === "string",
+      )
+      .map((entry) => ({
+        role: entry.role,
+        content: entry.text.slice(0, 4000),
+      }));
+
     const content = [
       {
         type: "input_text",
@@ -45,15 +62,16 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+    input.push({
+      role: "user",
+      content,
+    });
+
     const response = await openai.responses.create({
       model: "gpt-6-luna",
       tools: [{ type: "web_search" }],
-      input: [
-        {
-          role: "user",
-          content,
-        },
-      ],
+      store: false,
+      input,
     });
 
     res.json({
