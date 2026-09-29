@@ -53,13 +53,28 @@ shadow.innerHTML = `
     }
 
     form {
-      display: flex;
-      gap: 8px;
       padding: 10px;
       border-top: 1px solid #eee;
     }
 
-    input {
+    .attachment {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .attachment input {
+      max-width: 100%;
+      font-size: 12px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .question {
       flex: 1;
       min-width: 0;
       padding: 9px;
@@ -75,27 +90,47 @@ shadow.innerHTML = `
       background: #2563eb;
       cursor: pointer;
     }
+
+    button:disabled {
+      opacity: .6;
+      cursor: wait;
+    }
   </style>
 
   <section class="panel" aria-label="DocChat">
     <header>DocChat</header>
+
     <div class="messages" aria-live="polite">
-      <p class="message">Ask a question about this document.</p>
+      <p class="message">Ask a question or attach an image.</p>
     </div>
+
     <form>
-      <input
-        aria-label="Your question"
-        placeholder="Ask about this doc..."
-        required
-      />
-      <button type="submit">Send</button>
+      <div class="attachment">
+        <input
+          class="image"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          aria-label="Attach an image"
+        />
+      </div>
+
+      <div class="row">
+        <input
+          class="question"
+          aria-label="Your question"
+          placeholder="Ask about this doc or image..."
+        />
+        <button type="submit">Send</button>
+      </div>
     </form>
   </section>
 `;
 
 const form = shadow.querySelector("form");
-const input = shadow.querySelector("input");
+const input = shadow.querySelector(".question");
+const imageInput = shadow.querySelector(".image");
 const messages = shadow.querySelector(".messages");
+const button = shadow.querySelector("button");
 
 function addMessage(sender, text) {
   const message = document.createElement("p");
@@ -109,24 +144,47 @@ function addMessage(sender, text) {
   messages.scrollTop = messages.scrollHeight;
 }
 
+// FileReader converts the selected image into a data URL.
+function readImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read the image."));
+    reader.readAsDataURL(file);
+  });
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const question = input.value.trim();
-  if (!question) return;
+  const file = imageInput.files[0];
 
-  addMessage("You", question);
-  input.value = "";
+  if (!question && !file) return;
 
-  const button = form.querySelector("button");
+  if (file && file.size > 5 * 1024 * 1024) {
+    addMessage("DocChat", "Choose an image smaller than 5 MB.");
+    return;
+  }
+
   button.disabled = true;
   button.textContent = "Thinking...";
 
   try {
+    const image = file ? await readImage(file) : null;
+
+    addMessage(
+      "You",
+      `${question || "What is in this image?"}${file ? `\n📎 ${file.name}` : ""}`,
+    );
+
     const response = await fetch("https://docchat-afym.onrender.com/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({
+        question: question || "What is in this image?",
+        image,
+      }),
     });
 
     const data = await response.json();
@@ -136,6 +194,8 @@ form.addEventListener("submit", async (event) => {
     }
 
     addMessage("DocChat", data.answer || "No answer was returned.");
+    input.value = "";
+    imageInput.value = "";
   } catch (error) {
     addMessage("DocChat", `Error: ${error.message}`);
   } finally {
