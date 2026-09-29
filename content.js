@@ -109,7 +109,7 @@ function addMessage(sender, text) {
   messages.scrollTop = messages.scrollHeight;
 }
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const question = input.value.trim();
@@ -118,8 +118,28 @@ form.addEventListener("submit", (event) => {
   addMessage("You", question);
   input.value = "";
 
-  addMessage(
-    "DocChat",
-    "The chat box works! AI and document reading come next.",
-  );
+  const button = form.querySelector("button");
+  button.disabled = true;
+  button.textContent = "Thinking...";
+
+  try {
+    const response = await fetch("https://docchat-afym.onrender.com/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || `Server error ${response.status}`);
+    }
+
+    addMessage("DocChat", data.answer || "No answer was returned.");
+  } catch (error) {
+    addMessage("DocChat", `Error: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Send";
+  }
 });

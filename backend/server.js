@@ -17,7 +17,7 @@ app.post("/chat", async (req, res) => {
     }
 
     const response = await openai.responses.create({
-      model: "gpt-5-mini",
+      model: "gpt-6-luna",
       input: question,
     });
 
